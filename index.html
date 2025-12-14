@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Research Face Recognition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      video {
+        transform: scaleX(-1);
+      }
+      .animate-fade-in {
+        animation: fade-in 0.3s ease-out forwards;
+      }
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      /* Scrollbar cantik */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 min-h-screen p-4 font-sans text-gray-800">
+    <div class="max-w-7xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+      <header class="bg-slate-900 p-6 text-white flex justify-between items-center shadow-lg">
+        <div>
+          <h1 class="text-2xl font-bold tracking-wide">Research AI System</h1>
+          <p class="text-slate-400 text-xs mt-1">Comparasi Model: MTCNN vs YuNet vs RetinaFace</p>
+        </div>
+        <div class="text-right">
+          <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-500/50">System Ready</span>
+        </div>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 min-h-[650px]">
+        <div class="lg:col-span-4 bg-black p-4 flex flex-col relative">
+          <div class="bg-gray-900 rounded-xl overflow-hidden border border-gray-700 shadow-2xl relative">
+            <video id="webcam" autoplay playsinline class="w-full object-cover aspect-[4/3]"></video>
+            <canvas id="canvas" class="hidden"></canvas>
+
+            <div class="absolute bottom-4 left-4 right-4 flex justify-between text-xs text-white/80">
+              <span id="camStatus">● Camera Active</span>
+              <span>RES: 640x480</span>
+            </div>
+          </div>
+
+          <div class="mt-4 flex-1 bg-gray-900 rounded-xl p-4 border border-gray-700 overflow-hidden flex flex-col">
+            <h3 class="text-gray-400 text-xs font-bold uppercase mb-2 border-b border-gray-700 pb-2">Activity Log</h3>
+            <div id="attLog" class="flex-1 overflow-y-auto text-xs space-y-2 font-mono">
+              <div class="text-gray-600 italic">Menunggu aktivitas...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-8 bg-white flex flex-col">
+          <div class="flex border-b border-gray-200">
+            <button onclick="nav('att')" id="tab_att" class="flex-1 py-4 font-bold text-sm uppercase tracking-wider text-blue-600 border-b-2 border-blue-600 bg-blue-50/50">Absensi</button>
+            <button onclick="nav('data')" id="tab_data" class="flex-1 py-4 font-bold text-sm uppercase tracking-wider text-gray-500 hover:text-blue-600 hover:bg-gray-50">Laporan Data</button>
+            <button onclick="nav('adm')" id="tab_adm" class="flex-1 py-4 font-bold text-sm uppercase tracking-wider text-gray-500 hover:text-blue-600 hover:bg-gray-50">Admin</button>
+            <button onclick="nav('val')" id="tab_val" class="flex-1 py-4 font-bold text-sm uppercase tracking-wider text-purple-600 bg-purple-50/30 hover:bg-purple-50 hover:text-purple-800">Validasi Riset</button>
+          </div>
+
+          <div class="p-6 flex-1 overflow-y-auto relative bg-gray-50/30">
+            <div id="toast" class="hidden absolute top-4 right-4 max-w-sm px-4 py-3 rounded-lg shadow-xl text-white text-sm font-medium z-50 transform transition-all duration-300 translate-y-0"></div>
+
+            <div id="view_att" class="space-y-6 animate-fade-in max-w-2xl mx-auto">
+              <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><i data-lucide="calendar-check" class="w-5"></i> Form Absensi</h2>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label class="text-xs font-bold uppercase text-gray-500 mb-1 block">Mata Kuliah</label>
+                    <select id="attCourse" class="w-full border-gray-300 border p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                      <option>Deep Learning</option>
+                      <option>Kalkulus</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-xs font-bold uppercase text-gray-500 mb-1 block">Kelas</label>
+                    <select id="attClass" class="w-full border-gray-300 border p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                      <option>A</option>
+                      <option>B</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="mb-6">
+                  <label class="text-xs font-bold uppercase text-gray-500 mb-1 block">Pilih Detektor (Sesuai Kebutuhan)</label>
+                  <select id="rtDetector" class="w-full border-gray-300 border p-2.5 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="yunet">YuNet (Rekomendasi: Cepat & Akurat)</option>
+                    <option value="mtcnn">MTCNN (Baseline: Lambat)</option>
+                    <option value="retinaface">RetinaFace (Berat: Sangat Akurat)</option>
+                  </select>
+                  <p class="text-[10px] text-gray-400 mt-1">*OpenCV Haar telah dihapus karena akurasi rendah.</p>
+                </div>
+
+                <button onclick="doAbsen()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex justify-center items-center gap-3">
+                  <i data-lucide="scan-face" class="w-6 h-6"></i>
+                  AMBIL ABSENSI
+                </button>
+              </div>
+            </div>
+
+            <div id="view_data" class="space-y-4 hidden animate-fade-in h-full flex flex-col">
+              <div class="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <div>
+                  <h2 class="text-lg font-bold text-gray-800">Laporan Kehadiran</h2>
+                  <p class="text-xs text-gray-500">Rekap data real-time dari database.</p>
+                </div>
+                <button onclick="loadReport()" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black flex items-center gap-2"><i data-lucide="refresh-cw" class="w-3"></i> REFRESH DATA</button>
+              </div>
+
+              <div id="reportTableContainer" class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
+                <div class="absolute inset-0 overflow-auto">
+                  <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-100 text-gray-600 font-bold uppercase text-xs sticky top-0">
+                      <tr>
+                        <th class="p-4 border-b">Nama Mahasiswa</th>
+                        <th class="p-4 border-b">ID</th>
+                        <th class="p-4 border-b text-right">Kehadiran</th>
+                      </tr>
+                    </thead>
+                    <tbody id="reportTableBody" class="divide-y divide-gray-100">
+                      <tr>
+                        <td colspan="5" class="p-10 text-center text-gray-400">Klik tombol Refresh untuk memuat data.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div id="view_adm" class="space-y-6 hidden animate-fade-in">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2 border-b pb-2"><i data-lucide="user-plus" class="w-4 text-blue-500"></i> Registrasi Dataset</h3>
+                  <div class="space-y-3">
+                    <input id="regId" placeholder="NIM / ID" class="w-full border p-2.5 rounded-lg text-sm" />
+                    <input id="regName" placeholder="Nama Lengkap" class="w-full border p-2.5 rounded-lg text-sm" />
+                    <button onclick="collectData()" id="btnColl" class="w-full bg-slate-800 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-black transition">Ambil 50 Foto</button>
+
+                    <div id="progBar" class="hidden space-y-1">
+                      <div class="h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-blue-500 transition-all duration-75" style="width: 0%"></div></div>
+                      <p class="text-xs text-center text-gray-500">Mengambil gambar...</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-6">
+                  <div class="bg-orange-50 p-5 rounded-xl border border-orange-200">
+                    <h3 class="font-bold text-orange-900 mb-3 flex items-center gap-2"><i data-lucide="brain-circuit" class="w-4"></i> Training Model Produksi</h3>
+                    <p class="text-[10px] text-orange-700 mb-3">Pilih model terbaik hasil riset Anda untuk dipakai harian.</p>
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                      <select id="trModel" class="border p-2 text-xs rounded bg-white">
+                        <option value="ArcFace">ArcFace (Recommended)</option>
+                        <option value="VGG-Face">VGG-Face</option>
+                        <option value="Facenet512">FaceNet512</option>
+                      </select>
+                      <select id="trDet" class="border p-2 text-xs rounded bg-white">
+                        <option value="yunet">YuNet</option>
+                        <option value="mtcnn">MTCNN</option>
+                        <option value="retinaface">RetinaFace</option>
+                      </select>
+                    </div>
+                    <button onclick="trainFinal()" id="btnTrain" class="w-full bg-orange-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-orange-700 shadow-sm">Latih Model & Simpan</button>
+                  </div>
+
+                  <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="layers" class="w-4 text-green-500"></i> Kelola Kelas</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                      <button
+                        onclick="api('/api/add_roster', {id:document.getElementById('regId').value, course:'Deep Learning', class:'A'})"
+                        class="bg-green-50 text-green-700 border border-green-200 py-2 rounded-lg text-xs font-bold hover:bg-green-100"
+                      >
+                        Add to Roster
+                      </button>
+                      <button onclick="api('/api/start_session', {course:'Deep Learning', class:'A'})" class="bg-indigo-50 text-indigo-700 border border-indigo-200 py-2 rounded-lg text-xs font-bold hover:bg-indigo-100">
+                        Start New Session
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="view_val" class="space-y-4 hidden animate-fade-in h-full flex flex-col">
+              <div class="bg-purple-50 p-6 rounded-xl border border-purple-200 shadow-sm">
+                <h3 class="font-bold text-purple-900 text-lg mb-2 flex items-center gap-2"><i data-lucide="flask-conical" class="w-5"></i> Laboratorium Pengujian</h3>
+                <p class="text-sm text-purple-700 mb-4">Gunakan fitur ini untuk Bab 4 (Hasil & Pembahasan). Bandingkan akurasi dan kecepatan (FPS).</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label class="text-[10px] font-bold uppercase text-purple-600 mb-1 block">Model Pengenalan</label>
+                    <select id="benchModel" class="w-full border-purple-200 border p-3 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white">
+                      <option value="VGG-Face">VGG-Face (Baseline)</option>
+                      <option value="ArcFace">ArcFace (Challenger 1)</option>
+                      <option value="Facenet512">FaceNet512 (Challenger 2)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-[10px] font-bold uppercase text-purple-600 mb-1 block">Detektor Wajah</label>
+                    <select id="benchDet" class="w-full border-purple-200 border p-3 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white">
+                      <option value="mtcnn">MTCNN (Standard Baseline)</option>
+                      <option value="yunet">YuNet (Proposed Method - Fast)</option>
+                      <option value="retinaface">RetinaFace (High Accuracy Benchmark)</option>
+                    </select>
+                  </div>
+                </div>
+                <button onclick="runBenchmark()" id="btnBench" class="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 shadow-lg shadow-purple-200 flex justify-center items-center gap-2 transition-all">
+                  <i data-lucide="play-circle"></i> MULAI PENGUJIAN (BENCHMARK)
+                </button>
+              </div>
+
+              <div class="flex-1 overflow-hidden bg-white rounded-xl border border-gray-200 shadow-sm relative flex flex-col">
+                <div class="p-3 border-b bg-gray-50 font-bold text-xs text-gray-500 uppercase">Tabel Hasil Eksperimen</div>
+                <div class="overflow-auto flex-1">
+                  <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-100 text-xs uppercase font-bold text-gray-600 sticky top-0">
+                      <tr>
+                        <th class="p-3 border-b">Model</th>
+                        <th class="p-3 border-b">Detector</th>
+                        <th class="p-3 border-b text-center">Akurasi</th>
+                        <th class="p-3 border-b text-center">Waktu (s)</th>
+                        <th class="p-3 border-b text-center">FPS</th>
+                        <th class="p-3 border-b text-center">Total Data</th>
+                      </tr>
+                    </thead>
+                    <tbody id="benchResults" class="divide-y divide-gray-100"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // INIT
+      lucide.createIcons();
+      const video = document.getElementById("webcam");
+      const canvas = document.getElementById("canvas");
+
+      // WEBCAM SETUP
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((s) => {
+          video.srcObject = s;
+          document.getElementById("camStatus").classList.add("text-green-400");
+          video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          };
+        })
+        .catch((e) => {
+          document.getElementById("camStatus").innerText = "Camera Error";
+          document.getElementById("camStatus").classList.add("text-red-500");
+        });
+
+      function snap() {
+        const ctx = canvas.getContext("2d");
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        return canvas.toDataURL("image/jpeg", 0.9);
+      }
+
+      // NAVIGATION SYSTEM
+      function nav(t) {
+        // Hide all views
+        ["att", "data", "adm", "val"].forEach((x) => {
+          document.getElementById("view_" + x).classList.add("hidden");
+          const btn = document.getElementById("tab_" + x);
+          // Reset style
+          btn.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-gray-500 hover:text-blue-600 hover:bg-gray-50 border-b-2 border-transparent";
+        });
+
+        // Show active view
+        document.getElementById("view_" + t).classList.remove("hidden");
+        const activeBtn = document.getElementById("tab_" + t);
+
+        // Active Styles
+        if (t === "val") activeBtn.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-purple-700 bg-purple-50 border-b-2 border-purple-600";
+        else activeBtn.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-blue-600 bg-blue-50 border-b-2 border-blue-600";
+
+        // Khusus tab data, auto refresh
+        if (t === "data") loadReport();
+      }
+
+      // HELPER: Toast Notification
+      function toast(msg, type = "info") {
+        const t = document.getElementById("toast");
+        t.innerHTML = msg;
+        t.className = `absolute top-4 right-4 max-w-sm px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold z-50 transform transition-all duration-300 ${type === "error" ? "bg-red-500" : "bg-emerald-600"}`;
+        t.classList.remove("hidden", "translate-y-[-20px]", "opacity-0");
+
+        setTimeout(() => {
+          t.classList.add("translate-y-[-20px]", "opacity-0");
+          setTimeout(() => t.classList.add("hidden"), 300);
+        }, 3500);
+      }
+
+      // HELPER: Log Activity
+      function logAct(msg, type = "neutral") {
+        const log = document.getElementById("attLog");
+        const color = type === "success" ? "text-green-400" : type === "error" ? "text-red-400" : "text-blue-300";
+        const time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        log.innerHTML = `<div class="mb-1 border-b border-gray-800 pb-1"><span class="text-gray-500">[${time}]</span> <span class="${color}">${msg}</span></div>` + log.innerHTML;
+      }
+
+      // API WRAPPER
+      async function api(url, data) {
+        try {
+          const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+          return await r.json();
+        } catch (e) {
+          return { status: "error", message: "Koneksi Server Gagal" };
+        }
+      }
+
+      // --- FEATURE 1: ABSENSI ---
+      async function doAbsen() {
+        const c = document.getElementById("attCourse").value,
+          cl = document.getElementById("attClass").value,
+          det = document.getElementById("rtDetector").value;
+        const res = await api("/api/attend", { course: c, class: cl, image: snap(), detector_backend: det });
+
+        toast(res.message, res.status);
+        logAct(res.message, res.status);
+      }
+
+      // --- FEATURE 2: LAPORAN DATA (RESTORED) ---
+      async function loadReport() {
+        const tableBody = document.getElementById("reportTableBody");
+        const tableHead = document.querySelector("#reportTableContainer thead tr");
+
+        // Ambil data dari API (misal untuk Deep Learning Kelas A default, atau ambil dari dropdown tab Absensi)
+        const c = document.getElementById("attCourse").value,
+          cl = document.getElementById("attClass").value;
+
+        tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center"><i data-lucide="loader-2" class="animate-spin mx-auto mb-2"></i>Memuat data...</td></tr>`;
+        lucide.createIcons();
+
+        try {
+          const res = await fetch(`/api/get_attendance?course=${c}&class=${cl}`);
+          const data = await res.json();
+
+          if (data.status !== "success") throw new Error(data.message);
+          if (data.roster.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-gray-400">Belum ada data mahasiswa.</td></tr>`;
+            return;
+          }
+
+          // 1. Build Header
+          let headerHTML = `<th class="p-4 border-b">Nama Mahasiswa</th><th class="p-4 border-b">ID</th>`;
+          data.meetings.forEach((m) => {
+            headerHTML += `<th class="p-4 border-b text-center w-24">P${m.meeting_number}<div class="text-[10px] font-normal text-gray-500">${m.date}</div></th>`;
+          });
+          tableHead.innerHTML = headerHTML;
+
+          // 2. Build Body
+          let rows = "";
+          data.roster.forEach((s) => {
+            rows += `<tr class="hover:bg-gray-50 transition">`;
+            rows += `<td class="p-4 border-b font-medium text-gray-700">${s.name}</td>`;
+            rows += `<td class="p-4 border-b text-gray-500 font-mono text-xs">${s.id}</td>`;
+
+            data.meetings.forEach((m) => {
+              const isPresent = m.attendance[s.id];
+              const icon = isPresent
+                ? `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600"><i data-lucide="check" class="w-4 h-4"></i></span>`
+                : `<span class="text-gray-200 text-2xl">•</span>`;
+              rows += `<td class="p-4 border-b text-center">${icon}</td>`;
+            });
+            rows += `</tr>`;
+          });
+          tableBody.innerHTML = rows;
+          lucide.createIcons();
+        } catch (e) {
+          tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-red-500">Gagal memuat data. Pastikan sesi sudah dibuat di tab Admin.</td></tr>`;
+        }
+      }
+
+      // --- FEATURE 3: ADMIN (COLLECT & TRAIN) ---
+      async function collectData() {
+        const id = document.getElementById("regId").value,
+          name = document.getElementById("regName").value;
+        if (!id || !name) return toast("Lengkapi ID & Nama", "error");
+
+        document.getElementById("btnColl").disabled = true;
+        document.getElementById("progBar").classList.remove("hidden");
+
+        let imgs = [];
+        for (let i = 0; i < 50; i++) {
+          imgs.push(snap());
+          document.querySelector("#progBar div").style.width = `${(i + 1) * 2}%`;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+
+        const res = await api("/api/collect_dataset", { id, name, images: imgs });
+        toast(res.message, res.status);
+
+        document.getElementById("btnColl").disabled = false;
+        document.getElementById("progBar").classList.add("hidden");
+      }
+
+      async function trainFinal() {
+        if (!confirm("Training model akan memakan waktu. Lanjutkan?")) return;
+        const btn = document.getElementById("btnTrain");
+        btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin inline mr-2"></i> Sedang Melatih...`;
+
+        const res = await api("/api/train_model", {
+          model_name: document.getElementById("trModel").value,
+          detector_backend: document.getElementById("trDet").value,
+        });
+
+        toast(res.message, res.status);
+        btn.innerHTML = `Latih Model & Simpan`;
+      }
+
+      // --- FEATURE 4: VALIDASI RISET (BENCHMARK) ---
+      async function runBenchmark() {
+        const m = document.getElementById("benchModel").value,
+          d = document.getElementById("benchDet").value;
+        const btn = document.getElementById("btnBench");
+
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin inline mr-2"></i> Menguji ${m} + ${d}...`;
+
+        const res = await api("/api/benchmark", { model_name: m, detector_backend: d });
+
+        if (res.status === "success") {
+          const r = res.results;
+          // Styling row based on FPS
+          const fpsColor = r.fps > 15 ? "text-green-600 bg-green-50" : r.fps > 5 ? "text-blue-600" : "text-red-500";
+
+          const row = `
+                    <tr class="hover:bg-gray-50 border-b animate-fade-in">
+                        <td class="p-3 font-medium text-gray-800">${r.model}</td>
+                        <td class="p-3 text-gray-600">${r.detector}</td>
+                        <td class="p-3 text-center font-bold">${r.accuracy}%</td>
+                        <td class="p-3 text-center text-xs font-mono">${r.avg_time}s</td>
+                        <td class="p-3 text-center font-bold ${fpsColor}">${r.fps}</td>
+                        <td class="p-3 text-center text-xs text-gray-400">${r.total_samples}</td>
+                    </tr>
+                `;
+          document.getElementById("benchResults").innerHTML += row;
+          toast(`Selesai: FPS ${r.fps}`, "success");
+        } else {
+          toast(res.message, "error");
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="play-circle"></i> MULAI PENGUJIAN (BENCHMARK)`;
+        lucide.createIcons();
+      }
+
+      // Load Icons on start
+      window.onload = function () {
+        lucide.createIcons();
+        // Default active view
+        nav("att");
+      };
+    </script>
+  </body>
+</html>

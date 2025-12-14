@@ -1,0 +1,11 @@
+Flask
+gunicorn
+deepface
+opencv-python
+numpy
+tf-keras
+scikit-learn
+joblib
+# --- Tambahan Wajib untuk Riset (Benchmarking) ---
+mtcnn
+retina-face

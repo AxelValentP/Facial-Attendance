@@ -1,0 +1,11 @@
+__pycache__/
+105_classes_pins_dataset/
+class_rosters/
+models/
+research_dataset/
+training_dataset/
+venv/
+label_encoder.pkl
+model_config.json
+student_info.json
+svm_model.pkl
