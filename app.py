@@ -6,36 +6,33 @@ import numpy as np
 import time
 import datetime
 import joblib
+from scipy.spatial.distance import cosine
 from flask import Flask, request, jsonify, send_from_directory
 from deepface import DeepFace
 
-# Scikit-Learn untuk Validasi Ilmiah & Klasifikasi
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
-
 app = Flask(__name__, static_folder='.', static_url_path='')
 
-# --- KONFIGURASI PATH (DIPISAHKAN) ---
-TRAINING_DATA_PATH = "training_dataset"  # KHUSUS MAHASISWA (Absensi)
-RESEARCH_DATA_PATH = "research_dataset"  # KHUSUS RISET (PINS/LFW)
+# --- KONFIGURASI PATH ---
+TRAINING_DATA_PATH = "training_dataset"
+RESEARCH_DATA_PATH = "research_dataset"
 ROSTER_PATH = "class_rosters"
 STUDENT_INFO_FILE = "student_info.json"
-MODEL_SVM_FILE = "svm_model.pkl"
-MODEL_LE_FILE = "label_encoder.pkl"
+DATABASE_FILE = "face_database.pkl" # Pengganti model SVM
 MODEL_CONFIG_FILE = "model_config.json"
 
-# Buat semua folder jika belum ada
 os.makedirs(TRAINING_DATA_PATH, exist_ok=True)
-os.makedirs(RESEARCH_DATA_PATH, exist_ok=True) # Folder ini wajib ada untuk benchmark
+os.makedirs(RESEARCH_DATA_PATH, exist_ok=True)
 os.makedirs(ROSTER_PATH, exist_ok=True)
 
-# Global Variables (Cache Memory)
-model_svm = None
-model_le = None
+# Global Cache
+face_database = {} # Format: {'NIM': [vector1, vector2, ...]}
 current_model_config = {}
 current_active_session = None
+
+# THRESHOLD (Ambang Batas)
+# VGG-Face dengan Cosine: < 0.40 adalah orang yang sama
+# Semakin kecil angka jarak, semakin mirip.
+THRESHOLD_COSINE = 0.40
 
 # --- HELPER FUNCTIONS ---
 
@@ -45,6 +42,8 @@ def b64_to_image(b64_string):
     img_data = base64.b64decode(b64_string)
     np_arr = np.frombuffer(img_data, np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    # FIX: DeepFace butuh RGB, OpenCV baca BGR
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 
 def load_student_info():
@@ -69,21 +68,35 @@ def load_attendance_data(course, class_name):
 def save_attendance_data(course, class_name, data):
     with open(get_roster_path(course, class_name), 'w') as f: json.dump(data, f, indent=2)
 
-def load_trained_models():
-    global model_svm, model_le, current_model_config
+def load_database():
+    global face_database, current_model_config
     try:
-        if os.path.exists(MODEL_SVM_FILE): model_svm = joblib.load(MODEL_SVM_FILE)
-        if os.path.exists(MODEL_LE_FILE): model_le = joblib.load(MODEL_LE_FILE)
+        if os.path.exists(DATABASE_FILE):
+            face_database = joblib.load(DATABASE_FILE)
+            print(f">> Database Wajah Dimuat: {len(face_database)} Mahasiswa")
         
         if os.path.exists(MODEL_CONFIG_FILE):
             with open(MODEL_CONFIG_FILE, 'r') as f:
                 current_model_config = json.load(f)
-            print(f">> Config Loaded: {current_model_config}")
         else:
             current_model_config = {"model_name": "VGG-Face", "detector_backend": "opencv"}
-            
     except Exception as e:
-        print(f"Warning: Model belum siap ({e})")
+        print(f"Warning: Database belum siap ({e})")
+
+# LOGIKA UTAMA: COSINE SIMILARITY
+def find_best_match(target_emb, db):
+    best_id = "Unknown"
+    min_dist = 100.0 # Mulai dari jarak jauh
+
+    # Linear Search (Loop semua mahasiswa)
+    for sid, vectors in db.items():
+        for db_vec in vectors:
+            dist = cosine(target_emb, db_vec)
+            if dist < min_dist:
+                min_dist = dist
+                best_id = sid
+    
+    return best_id, min_dist
 
 # --- API ENDPOINTS ---
 
@@ -91,7 +104,6 @@ def load_trained_models():
 def index():
     return send_from_directory('.', 'index.html')
 
-# 1. API COLLECT DATASET (Masuk ke Folder MAHASISWA)
 @app.route('/api/collect_dataset', methods=['POST'])
 def api_collect():
     try:
@@ -102,13 +114,15 @@ def api_collect():
 
         if not all([sid, name, images]): return jsonify(message="Data tidak lengkap", status="error"), 400
         
-        # Simpan ke TRAINING_DATA_PATH
         folder_name = f"{sid}_{name.replace(' ', '_')}"
         folder_path = os.path.join(TRAINING_DATA_PATH, folder_name)
         os.makedirs(folder_path, exist_ok=True)
 
         for i, img_b64 in enumerate(images):
-            cv2.imwrite(os.path.join(folder_path, f"{i+1}.jpg"), b64_to_image(img_b64))
+            # Simpan sebagai BGR (standar OpenCV file)
+            img_rgb = b64_to_image(img_b64)
+            img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR) 
+            cv2.imwrite(os.path.join(folder_path, f"{i+1}.jpg"), img_bgr)
         
         info = load_student_info()
         info[str(sid)] = name
@@ -118,27 +132,29 @@ def api_collect():
     except Exception as e:
         return jsonify(message=str(e), status="error"), 500
 
-# 2. API TRAINING FINAL (Menggunakan Data MAHASISWA)
+# GANTI DARI TRAINING SVM KE INDEXING DATABASE
 @app.route('/api/train_model', methods=['POST'])
 def api_train():
-    global model_svm, model_le, current_model_config
+    global face_database, current_model_config
     try:
         conf = request.json
         model_name = conf.get('model_name', 'VGG-Face')
         detector = conf.get('detector_backend', 'opencv')
         
-        print(f"--- Training Final (Mahasiswa): {model_name} + {detector} ---")
+        print(f"--- Updating Database: {model_name} + {detector} ---")
         
-        X, y = [], []
-        # BACA DARI FOLDER MAHASISWA
+        new_db = {}
         folders = [f for f in os.listdir(TRAINING_DATA_PATH) if os.path.isdir(os.path.join(TRAINING_DATA_PATH, f))]
         
-        if len(folders) < 2: return jsonify(message="Minimal butuh 2 mahasiswa terdaftar", status="error"), 400
+        if not folders: return jsonify(message="Tidak ada data mahasiswa", status="error"), 400
 
-        for label in folders:
-            path = os.path.join(TRAINING_DATA_PATH, label)
+        for folder in folders:
+            # Format Folder: NIM_Nama -> Ambil NIM
+            sid = folder.split('_')[0]
+            path = os.path.join(TRAINING_DATA_PATH, folder)
             files = [f for f in os.listdir(path) if f.endswith(('.jpg', '.png'))]
             
+            vecs = []
             for f in files:
                 try:
                     emb = DeepFace.represent(
@@ -147,101 +163,100 @@ def api_train():
                         detector_backend=detector,
                         enforce_detection=False
                     )[0]["embedding"]
-                    X.append(emb)
-                    y.append(label)
+                    vecs.append(emb)
                 except: pass
+            
+            if vecs:
+                new_db[sid] = vecs
+                print(f"Indexed {sid}: {len(vecs)} vectors")
 
-        if not X: return jsonify(message="Gagal ekstrak fitur", status="error"), 500
-
-        le = LabelEncoder()
-        y_enc = le.fit_transform(y)
+        face_database = new_db
+        joblib.dump(face_database, DATABASE_FILE)
         
-        svm = SVC(kernel='linear', probability=True)
-        svm.fit(X, y_enc)
-        
-        model_svm = svm
-        model_le = le
         current_model_config = {"model_name": model_name, "detector_backend": detector}
-        
-        joblib.dump(svm, MODEL_SVM_FILE)
-        joblib.dump(le, MODEL_LE_FILE)
         with open(MODEL_CONFIG_FILE, 'w') as f: json.dump(current_model_config, f)
         
-        return jsonify(message=f"Model {model_name} berhasil dilatih & disimpan!", status="success")
+        return jsonify(message=f"Database Wajah Diperbarui ({len(new_db)} Mahasiswa)", status="success")
 
     except Exception as e:
-        return jsonify(message=f"Error Training: {str(e)}", status="error"), 500
+        return jsonify(message=f"Error Update: {str(e)}", status="error"), 500
 
-# 3. API BENCHMARK (Menggunakan Data RISET/PINS) -> [PERBAIKAN UTAMA]
+# BENCHMARK DENGAN COSINE SIMILARITY (1-Nearest Neighbor)
 @app.route('/api/benchmark', methods=['POST'])
 def api_benchmark():
-    """
-    Fitur utama untuk Skripsi: Membandingkan Akurasi & FPS
-    MENGGUNAKAN FOLDER 'research_dataset' (PINS/LFW)
-    """
     try:
         conf = request.json
         model_name = conf.get('model_name')
         detector = conf.get('detector_backend')
+        source_type = conf.get('dataset_source', 'research')
         
-        print(f"--- Benchmarking Riset (PINS): {model_name} + {detector} ---")
-        
-        X, y = [], []
-        
-        # PERBAIKAN: Baca dari RESEARCH_DATA_PATH
-        if not os.path.exists(RESEARCH_DATA_PATH):
-             return jsonify(message="Folder research_dataset tidak ditemukan. Jalankan script setup dulu.", status="error"), 400
+        target_path = TRAINING_DATA_PATH if source_type == 'student' else RESEARCH_DATA_PATH
+        if not os.path.exists(target_path):
+             return jsonify(message=f"Folder {target_path} tidak ditemukan.", status="error"), 400
 
-        folders = [f for f in os.listdir(RESEARCH_DATA_PATH) if os.path.isdir(os.path.join(RESEARCH_DATA_PATH, f))]
-        
+        folders = [f for f in os.listdir(target_path) if os.path.isdir(os.path.join(target_path, f))]
         if len(folders) < 2: 
-            return jsonify(message="Data PINS kurang/kosong. Jalankan script setup_pins.py.", status="error"), 400
+            return jsonify(message="Data kurang (min 2 kelas).", status="error"), 400
 
+        # Kita split: Sebagian jadi Database (Gallery), Sebagian jadi Soal Test (Probe)
+        gallery_db = {}
+        probes = []
         inference_times = []
-        total_extracted = 0
+        
+        print("--- Benchmarking 1-NN Cosine ---")
 
         for label in folders:
-            path = os.path.join(RESEARCH_DATA_PATH, label)
-            files = [f for f in os.listdir(path) if f.lower().endswith(('.jpg','.png','.jpeg'))]
+            path = os.path.join(target_path, label)
+            files = [f for f in os.listdir(path) if f.lower().endswith(('.jpg','.png'))][:25]
             
-            # Limit sampel agar tidak crash
-            files = files[:20] 
+            # Split 80% Database, 20% Test
+            split = int(len(files) * 0.8)
+            train_files = files[:split]
+            test_files = files[split:]
 
-            for f in files:
-                img_path = os.path.join(path, f)
+            # Isi Gallery
+            vecs = []
+            for f in train_files:
+                try:
+                    e = DeepFace.represent(os.path.join(path, f), model_name=model_name, detector_backend=detector, enforce_detection=False)[0]["embedding"]
+                    vecs.append(e)
+                except: pass
+            if vecs: gallery_db[label] = vecs
+
+            # Isi Test
+            for f in test_files:
                 try:
                     t0 = time.time()
-                    emb = DeepFace.represent(
-                        img_path=img_path,
-                        model_name=model_name,
-                        detector_backend=detector,
-                        enforce_detection=False
-                    )[0]["embedding"]
+                    e = DeepFace.represent(os.path.join(path, f), model_name=model_name, detector_backend=detector, enforce_detection=False)[0]["embedding"]
                     t1 = time.time()
-                    
-                    X.append(emb)
-                    y.append(label)
                     inference_times.append(t1 - t0)
-                    total_extracted += 1
+                    probes.append((label, e))
                 except: pass
 
-        if total_extracted == 0:
-             return jsonify(message=f"Gagal deteksi wajah PINS dengan {detector}", status="error"), 500
+        if not probes: return jsonify(message="Gagal ekstrak fitur test.", status="error"), 500
 
-        # Split Data PINS (Train/Test)
-        le = LabelEncoder()
-        y_enc = le.fit_transform(y)
-        
-        # Stratify split agar seimbang
-        X_train, X_test, y_train, y_test = train_test_split(X, y_enc, test_size=0.2, random_state=42, stratify=y_enc)
-        
-        svm = SVC(kernel='linear', probability=True)
-        svm.fit(X_train, y_train)
-        
-        y_pred = svm.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
-        
-        avg_time = sum(inference_times) / len(inference_times)
+        correct = 0
+        total_similarity = 0 # Menggantikan confidence
+
+        for true_label, target_vec in probes:
+            # Cari match dengan Cosine
+            pred_id, dist = find_best_match(target_vec, gallery_db)
+            
+            # Logic pencocokan label
+            # Jika dataset mahasiswa: folder "123_Nama", tapi ID di db "123". Harus disamakan.
+            norm_true = true_label.split('_')[0] if source_type == 'student' else true_label
+            norm_pred = pred_id.split('_')[0] if source_type == 'student' else pred_id
+            
+            if norm_true == norm_pred:
+                correct += 1
+            
+            # Similarity score (0-100%)
+            sim = max(0, (1 - dist)) 
+            total_similarity += sim
+
+        acc = correct / len(probes)
+        avg_sim = total_similarity / len(probes)
+        avg_time = sum(inference_times) / len(inference_times) if inference_times else 0
         fps = 1.0 / avg_time if avg_time > 0 else 0
         
         return jsonify(
@@ -249,29 +264,33 @@ def api_benchmark():
             results={
                 "model": model_name,
                 "detector": detector,
+                "dataset": "Mahasiswa" if source_type == 'student' else "PINS/Riset",
                 "accuracy": round(acc * 100, 2),
+                "avg_confidence": round(avg_sim * 100, 2), # Dikirim sebagai "confidence" agar tidak error di frontend
                 "avg_time": round(avg_time, 4),
                 "fps": round(fps, 2),
-                "total_samples": total_extracted
+                "total_samples": len(probes)
             }
         )
 
     except Exception as e:
-        print(f"Error Benchmark: {e}")
+        print(e)
         return jsonify(message=f"Benchmark Gagal: {str(e)}", status="error"), 500
 
-# 4. API ABSENSI (Menggunakan Model Produksi dari Data Mahasiswa)
+# API ABSENSI (COSINE)
 @app.route('/api/attend', methods=['POST'])
 def api_attend():
-    global current_active_session, model_svm, model_le
+    global current_active_session, face_database
     
     if not current_active_session: return jsonify(message="Belum ada sesi aktif.", status="error"), 400
-    if not model_svm: return jsonify(message="Model belum dilatih.", status="error"), 500
+    if not face_database: return jsonify(message="Database kosong. Lakukan Training/Update dulu.", status="error"), 500
 
     try:
         data = request.json
         model_name = current_model_config.get('model_name', 'VGG-Face')
-        req_detector = data.get('detector_backend', 'opencv')
+        
+        # Opsi Pilihan User Tetap Ada
+        req_detector = data.get('detector_backend', 'opencv') 
         img = b64_to_image(data.get('image'))
 
         try:
@@ -284,20 +303,24 @@ def api_attend():
         except:
             return jsonify(message="Wajah tidak terdeteksi", status="error")
 
-        proba = model_svm.predict_proba([emb])[0]
-        idx = np.argmax(proba)
-        confidence = proba[idx]
+        # GANTI LOGIKA SVM -> COSINE
+        student_id, dist = find_best_match(emb, face_database)
         
-        if confidence < 0.70:
-            return jsonify(message=f"Wajah Asing ({confidence:.2f})", status="error")
+        # Ubah Distance ke Similarity % untuk tampilan
+        # Distance 0 = 100% mirip. Distance 0.4 = 60% mirip (kasarnya)
+        similarity = (1 - dist) * 100
+        sim_str = round(similarity, 1)
+
+        # CEK THRESHOLD
+        if dist > THRESHOLD_COSINE:
+            return jsonify(message=f"Wajah Asing (Mirip: {sim_str}%)", status="error")
         
-        student_id = model_le.inverse_transform([idx])[0].split('_')[0]
         info = load_student_info()
         student_name = info.get(student_id, "Unknown")
 
         att_data = load_attendance_data(current_active_session['course'], current_active_session['class'])
         if student_id not in att_data['students']:
-            return jsonify(message=f"{student_name} tidak terdaftar", status="warning")
+            return jsonify(message=f"{student_name} tidak terdaftar ({sim_str}%)", status="warning")
 
         active_meet = None
         for m in reversed(att_data['meetings']):
@@ -309,35 +332,33 @@ def api_attend():
             if not active_meet['attendance'].get(student_id):
                 active_meet['attendance'][student_id] = True
                 save_attendance_data(current_active_session['course'], current_active_session['class'], att_data)
-                return jsonify(message=f"Hadir: {student_name}", status="success")
+                return jsonify(message=f"Hadir: {student_name} ({sim_str}%)", status="success")
             else:
-                return jsonify(message=f"Sudah Absen: {student_name}", status="info")
+                return jsonify(message=f"Sudah Absen: {student_name} ({sim_str}%)", status="info")
 
         return jsonify(message="Error System", status="error")
 
     except Exception as e:
         return jsonify(message=f"Error: {str(e)}", status="error"), 500
 
-# 5. API DATA LAPORAN
+# Helper Routes (Sama seperti sebelumnya)
 @app.route('/api/get_attendance', methods=['GET'])
 def api_get_attendance():
     c = request.args.get('course')
     cl = request.args.get('class')
     data = load_attendance_data(c, cl)
     info = load_student_info()
-    
     roster_list = []
     for sid in data['students']:
         roster_list.append({"id": sid, "name": info.get(sid, sid)})
-    
     return jsonify(roster=roster_list, meetings=data['meetings'], status="success")
 
 @app.route('/api/add_roster', methods=['POST'])
 def api_add_roster():
     try:
         d = request.json
-        if d['id'] not in load_student_info(): return jsonify(message="ID belum registrasi dataset", status="error"), 404
-        
+        # Cek apakah ID ada di database wajah
+        if d['id'] not in face_database: return jsonify(message="ID belum registrasi dataset", status="error"), 404
         ad = load_attendance_data(d['course'], d['class'])
         if d['id'] not in ad['students']:
             ad['students'].append(d['id'])
@@ -361,5 +382,5 @@ def api_start_session():
     return jsonify(message=f"Sesi {num} Dimulai", status="success", meeting_number=num)
 
 if __name__ == '__main__':
-    load_trained_models()
+    load_database()
     app.run(debug=True, host='0.0.0.0', port=5000)

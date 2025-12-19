@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Research Face Recognition</title>
+    <title>Research Face Recognition (Cosine)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -21,7 +21,6 @@
           opacity: 1;
         }
       }
-      /* Scrollbar cantik */
       ::-webkit-scrollbar {
         width: 8px;
       }
@@ -42,7 +41,7 @@
       <header class="bg-slate-900 p-6 text-white flex justify-between items-center shadow-lg">
         <div>
           <h1 class="text-2xl font-bold tracking-wide">Research AI System</h1>
-          <p class="text-slate-400 text-xs mt-1">Comparasi Model: MTCNN vs YuNet vs RetinaFace</p>
+          <p class="text-slate-400 text-xs mt-1">Comparasi Model: MTCNN vs YuNet vs RetinaFace (Cosine Metric)</p>
         </div>
         <div class="text-right">
           <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-500/50">System Ready</span>
@@ -54,7 +53,6 @@
           <div class="bg-gray-900 rounded-xl overflow-hidden border border-gray-700 shadow-2xl relative">
             <video id="webcam" autoplay playsinline class="w-full object-cover aspect-[4/3]"></video>
             <canvas id="canvas" class="hidden"></canvas>
-
             <div class="absolute bottom-4 left-4 right-4 flex justify-between text-xs text-white/80">
               <span id="camStatus">● Camera Active</span>
               <span>RES: 640x480</span>
@@ -62,7 +60,7 @@
           </div>
 
           <div class="mt-4 flex-1 bg-gray-900 rounded-xl p-4 border border-gray-700 overflow-hidden flex flex-col">
-            <h3 class="text-gray-400 text-xs font-bold uppercase mb-2 border-b border-gray-700 pb-2">Activity Log</h3>
+            <h3 class="text-gray-400 text-xs font-bold uppercase mb-2 border-b border-gray-700 pb-2">Activity Log (Similarity %)</h3>
             <div id="attLog" class="flex-1 overflow-y-auto text-xs space-y-2 font-mono">
               <div class="text-gray-600 italic">Menunggu aktivitas...</div>
             </div>
@@ -83,7 +81,6 @@
             <div id="view_att" class="space-y-6 animate-fade-in max-w-2xl mx-auto">
               <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><i data-lucide="calendar-check" class="w-5"></i> Form Absensi</h2>
-
                 <div class="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label class="text-xs font-bold uppercase text-gray-500 mb-1 block">Mata Kuliah</label>
@@ -100,20 +97,17 @@
                     </select>
                   </div>
                 </div>
-
                 <div class="mb-6">
-                  <label class="text-xs font-bold uppercase text-gray-500 mb-1 block">Pilih Detektor (Sesuai Kebutuhan)</label>
+                  <label class="text-xs font-bold uppercase text-gray-500 mb-1 block">Pilih Detektor</label>
                   <select id="rtDetector" class="w-full border-gray-300 border p-2.5 rounded-lg text-sm bg-blue-50 focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="yunet">YuNet (Rekomendasi: Cepat & Akurat)</option>
-                    <option value="mtcnn">MTCNN (Baseline: Lambat)</option>
-                    <option value="retinaface">RetinaFace (Berat: Sangat Akurat)</option>
+                    <option value="yunet">YuNet (Rekomendasi)</option>
+                    <option value="mtcnn">MTCNN (Baseline)</option>
+                    <option value="retinaface">RetinaFace (Akurat)</option>
+                    <option value="opencv">OpenCV (Cepat/Kurang Akurat)</option>
                   </select>
-                  <p class="text-[10px] text-gray-400 mt-1">*OpenCV Haar telah dihapus karena akurasi rendah.</p>
                 </div>
-
                 <button onclick="doAbsen()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all flex justify-center items-center gap-3">
-                  <i data-lucide="scan-face" class="w-6 h-6"></i>
-                  AMBIL ABSENSI
+                  <i data-lucide="scan-face" class="w-6 h-6"></i> AMBIL ABSENSI
                 </button>
               </div>
             </div>
@@ -124,9 +118,8 @@
                   <h2 class="text-lg font-bold text-gray-800">Laporan Kehadiran</h2>
                   <p class="text-xs text-gray-500">Rekap data real-time dari database.</p>
                 </div>
-                <button onclick="loadReport()" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black flex items-center gap-2"><i data-lucide="refresh-cw" class="w-3"></i> REFRESH DATA</button>
+                <button onclick="loadReport()" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black flex items-center gap-2"><i data-lucide="refresh-cw" class="w-3"></i> REFRESH</button>
               </div>
-
               <div id="reportTableContainer" class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
                 <div class="absolute inset-0 overflow-auto">
                   <table class="w-full text-sm text-left">
@@ -137,11 +130,7 @@
                         <th class="p-4 border-b text-right">Kehadiran</th>
                       </tr>
                     </thead>
-                    <tbody id="reportTableBody" class="divide-y divide-gray-100">
-                      <tr>
-                        <td colspan="5" class="p-10 text-center text-gray-400">Klik tombol Refresh untuk memuat data.</td>
-                      </tr>
-                    </tbody>
+                    <tbody id="reportTableBody" class="divide-y divide-gray-100"></tbody>
                   </table>
                 </div>
               </div>
@@ -155,7 +144,6 @@
                     <input id="regId" placeholder="NIM / ID" class="w-full border p-2.5 rounded-lg text-sm" />
                     <input id="regName" placeholder="Nama Lengkap" class="w-full border p-2.5 rounded-lg text-sm" />
                     <button onclick="collectData()" id="btnColl" class="w-full bg-slate-800 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-black transition">Ambil 50 Foto</button>
-
                     <div id="progBar" class="hidden space-y-1">
                       <div class="h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-blue-500 transition-all duration-75" style="width: 0%"></div></div>
                       <p class="text-xs text-center text-gray-500">Mengambil gambar...</p>
@@ -165,11 +153,10 @@
 
                 <div class="space-y-6">
                   <div class="bg-orange-50 p-5 rounded-xl border border-orange-200">
-                    <h3 class="font-bold text-orange-900 mb-3 flex items-center gap-2"><i data-lucide="brain-circuit" class="w-4"></i> Training Model Produksi</h3>
-                    <p class="text-[10px] text-orange-700 mb-3">Pilih model terbaik hasil riset Anda untuk dipakai harian.</p>
+                    <h3 class="font-bold text-orange-900 mb-3 flex items-center gap-2"><i data-lucide="database" class="w-4"></i> Database Wajah</h3>
                     <div class="grid grid-cols-2 gap-2 mb-3">
                       <select id="trModel" class="border p-2 text-xs rounded bg-white">
-                        <option value="ArcFace">ArcFace (Recommended)</option>
+                        <option value="ArcFace">ArcFace</option>
                         <option value="VGG-Face">VGG-Face</option>
                         <option value="Facenet512">FaceNet512</option>
                       </select>
@@ -179,9 +166,8 @@
                         <option value="retinaface">RetinaFace</option>
                       </select>
                     </div>
-                    <button onclick="trainFinal()" id="btnTrain" class="w-full bg-orange-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-orange-700 shadow-sm">Latih Model & Simpan</button>
+                    <button onclick="trainFinal()" id="btnTrain" class="w-full bg-orange-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-orange-700 shadow-sm">Update Database Wajah</button>
                   </div>
-
                   <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                     <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="layers" class="w-4 text-green-500"></i> Kelola Kelas</h3>
                     <div class="grid grid-cols-2 gap-2">
@@ -203,23 +189,30 @@
             <div id="view_val" class="space-y-4 hidden animate-fade-in h-full flex flex-col">
               <div class="bg-purple-50 p-6 rounded-xl border border-purple-200 shadow-sm">
                 <h3 class="font-bold text-purple-900 text-lg mb-2 flex items-center gap-2"><i data-lucide="flask-conical" class="w-5"></i> Laboratorium Pengujian</h3>
-                <p class="text-sm text-purple-700 mb-4">Gunakan fitur ini untuk Bab 4 (Hasil & Pembahasan). Bandingkan akurasi dan kecepatan (FPS).</p>
+                <p class="text-sm text-purple-700 mb-4">Bandingkan performa pada Dataset Publik (Ideal) vs Dataset Mahasiswa (Real-world).</p>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label class="text-[10px] font-bold uppercase text-purple-600 mb-1 block">Sumber Dataset</label>
+                    <select id="benchSource" class="w-full border-purple-200 border p-3 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white font-bold text-purple-800">
+                      <option value="research">📚 PINS/LFW (Publik)</option>
+                      <option value="student">🎓 Data Mahasiswa (Lokal)</option>
+                    </select>
+                  </div>
                   <div>
                     <label class="text-[10px] font-bold uppercase text-purple-600 mb-1 block">Model Pengenalan</label>
                     <select id="benchModel" class="w-full border-purple-200 border p-3 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white">
-                      <option value="VGG-Face">VGG-Face (Baseline)</option>
-                      <option value="ArcFace">ArcFace (Challenger 1)</option>
-                      <option value="Facenet512">FaceNet512 (Challenger 2)</option>
+                      <option value="VGG-Face">VGG-Face</option>
+                      <option value="ArcFace">ArcFace</option>
+                      <option value="Facenet512">FaceNet512</option>
                     </select>
                   </div>
                   <div>
                     <label class="text-[10px] font-bold uppercase text-purple-600 mb-1 block">Detektor Wajah</label>
                     <select id="benchDet" class="w-full border-purple-200 border p-3 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 bg-white">
-                      <option value="mtcnn">MTCNN (Standard Baseline)</option>
-                      <option value="yunet">YuNet (Proposed Method - Fast)</option>
-                      <option value="retinaface">RetinaFace (High Accuracy Benchmark)</option>
+                      <option value="mtcnn">MTCNN</option>
+                      <option value="yunet">YuNet</option>
+                      <option value="retinaface">RetinaFace</option>
                     </select>
                   </div>
                 </div>
@@ -237,9 +230,9 @@
                         <th class="p-3 border-b">Model</th>
                         <th class="p-3 border-b">Detector</th>
                         <th class="p-3 border-b text-center">Akurasi</th>
+                        <th class="p-3 border-b text-center bg-yellow-50">Match %</th>
                         <th class="p-3 border-b text-center">Waktu (s)</th>
                         <th class="p-3 border-b text-center">FPS</th>
-                        <th class="p-3 border-b text-center">Total Data</th>
                       </tr>
                     </thead>
                     <tbody id="benchResults" class="divide-y divide-gray-100"></tbody>
@@ -253,12 +246,10 @@
     </div>
 
     <script>
-      // INIT
       lucide.createIcons();
       const video = document.getElementById("webcam");
       const canvas = document.getElementById("canvas");
 
-      // WEBCAM SETUP
       navigator.mediaDevices
         .getUserMedia({ video: true })
         .then((s) => {
@@ -283,42 +274,29 @@
         return canvas.toDataURL("image/jpeg", 0.9);
       }
 
-      // NAVIGATION SYSTEM
       function nav(t) {
-        // Hide all views
         ["att", "data", "adm", "val"].forEach((x) => {
           document.getElementById("view_" + x).classList.add("hidden");
-          const btn = document.getElementById("tab_" + x);
-          // Reset style
-          btn.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-gray-500 hover:text-blue-600 hover:bg-gray-50 border-b-2 border-transparent";
+          document.getElementById("tab_" + x).className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-gray-500 hover:text-blue-600 hover:bg-gray-50 border-b-2 border-transparent";
         });
-
-        // Show active view
         document.getElementById("view_" + t).classList.remove("hidden");
-        const activeBtn = document.getElementById("tab_" + t);
-
-        // Active Styles
-        if (t === "val") activeBtn.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-purple-700 bg-purple-50 border-b-2 border-purple-600";
-        else activeBtn.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-blue-600 bg-blue-50 border-b-2 border-blue-600";
-
-        // Khusus tab data, auto refresh
+        const a = document.getElementById("tab_" + t);
+        if (t === "val") a.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-purple-700 bg-purple-50 border-b-2 border-purple-600";
+        else a.className = "flex-1 py-4 font-bold text-sm uppercase tracking-wider text-blue-600 bg-blue-50 border-b-2 border-blue-600";
         if (t === "data") loadReport();
       }
 
-      // HELPER: Toast Notification
       function toast(msg, type = "info") {
         const t = document.getElementById("toast");
         t.innerHTML = msg;
         t.className = `absolute top-4 right-4 max-w-sm px-4 py-3 rounded-lg shadow-xl text-white text-sm font-bold z-50 transform transition-all duration-300 ${type === "error" ? "bg-red-500" : "bg-emerald-600"}`;
         t.classList.remove("hidden", "translate-y-[-20px]", "opacity-0");
-
         setTimeout(() => {
           t.classList.add("translate-y-[-20px]", "opacity-0");
           setTimeout(() => t.classList.add("hidden"), 300);
         }, 3500);
       }
 
-      // HELPER: Log Activity
       function logAct(msg, type = "neutral") {
         const log = document.getElementById("attLog");
         const color = type === "success" ? "text-green-400" : type === "error" ? "text-red-400" : "text-blue-300";
@@ -326,7 +304,6 @@
         log.innerHTML = `<div class="mb-1 border-b border-gray-800 pb-1"><span class="text-gray-500">[${time}]</span> <span class="${color}">${msg}</span></div>` + log.innerHTML;
       }
 
-      // API WRAPPER
       async function api(url, data) {
         try {
           const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -336,147 +313,108 @@
         }
       }
 
-      // --- FEATURE 1: ABSENSI ---
       async function doAbsen() {
         const c = document.getElementById("attCourse").value,
           cl = document.getElementById("attClass").value,
           det = document.getElementById("rtDetector").value;
         const res = await api("/api/attend", { course: c, class: cl, image: snap(), detector_backend: det });
-
         toast(res.message, res.status);
         logAct(res.message, res.status);
       }
 
-      // --- FEATURE 2: LAPORAN DATA (RESTORED) ---
       async function loadReport() {
         const tableBody = document.getElementById("reportTableBody");
         const tableHead = document.querySelector("#reportTableContainer thead tr");
-
-        // Ambil data dari API (misal untuk Deep Learning Kelas A default, atau ambil dari dropdown tab Absensi)
         const c = document.getElementById("attCourse").value,
           cl = document.getElementById("attClass").value;
-
         tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center"><i data-lucide="loader-2" class="animate-spin mx-auto mb-2"></i>Memuat data...</td></tr>`;
         lucide.createIcons();
-
         try {
           const res = await fetch(`/api/get_attendance?course=${c}&class=${cl}`);
           const data = await res.json();
-
-          if (data.status !== "success") throw new Error(data.message);
-          if (data.roster.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-gray-400">Belum ada data mahasiswa.</td></tr>`;
+          if (data.status !== "success" || data.roster.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-gray-400">Belum ada data.</td></tr>`;
             return;
           }
-
-          // 1. Build Header
           let headerHTML = `<th class="p-4 border-b">Nama Mahasiswa</th><th class="p-4 border-b">ID</th>`;
           data.meetings.forEach((m) => {
             headerHTML += `<th class="p-4 border-b text-center w-24">P${m.meeting_number}<div class="text-[10px] font-normal text-gray-500">${m.date}</div></th>`;
           });
           tableHead.innerHTML = headerHTML;
-
-          // 2. Build Body
           let rows = "";
           data.roster.forEach((s) => {
-            rows += `<tr class="hover:bg-gray-50 transition">`;
-            rows += `<td class="p-4 border-b font-medium text-gray-700">${s.name}</td>`;
-            rows += `<td class="p-4 border-b text-gray-500 font-mono text-xs">${s.id}</td>`;
-
+            rows += `<tr class="hover:bg-gray-50 transition"><td class="p-4 border-b font-medium text-gray-700">${s.name}</td><td class="p-4 border-b text-gray-500 font-mono text-xs">${s.id}</td>`;
             data.meetings.forEach((m) => {
-              const isPresent = m.attendance[s.id];
-              const icon = isPresent
-                ? `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600"><i data-lucide="check" class="w-4 h-4"></i></span>`
-                : `<span class="text-gray-200 text-2xl">•</span>`;
-              rows += `<td class="p-4 border-b text-center">${icon}</td>`;
+              rows += `<td class="p-4 border-b text-center">${
+                m.attendance[s.id]
+                  ? `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600"><i data-lucide="check" class="w-4 h-4"></i></span>`
+                  : `<span class="text-gray-200 text-2xl">•</span>`
+              }</td>`;
             });
             rows += `</tr>`;
           });
           tableBody.innerHTML = rows;
           lucide.createIcons();
         } catch (e) {
-          tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-red-500">Gagal memuat data. Pastikan sesi sudah dibuat di tab Admin.</td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-red-500">Error.</td></tr>`;
         }
       }
 
-      // --- FEATURE 3: ADMIN (COLLECT & TRAIN) ---
       async function collectData() {
         const id = document.getElementById("regId").value,
           name = document.getElementById("regName").value;
         if (!id || !name) return toast("Lengkapi ID & Nama", "error");
-
         document.getElementById("btnColl").disabled = true;
         document.getElementById("progBar").classList.remove("hidden");
-
         let imgs = [];
         for (let i = 0; i < 50; i++) {
           imgs.push(snap());
           document.querySelector("#progBar div").style.width = `${(i + 1) * 2}%`;
           await new Promise((r) => setTimeout(r, 50));
         }
-
         const res = await api("/api/collect_dataset", { id, name, images: imgs });
         toast(res.message, res.status);
-
         document.getElementById("btnColl").disabled = false;
         document.getElementById("progBar").classList.add("hidden");
       }
 
       async function trainFinal() {
-        if (!confirm("Training model akan memakan waktu. Lanjutkan?")) return;
-        const btn = document.getElementById("btnTrain");
-        btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin inline mr-2"></i> Sedang Melatih...`;
-
-        const res = await api("/api/train_model", {
-          model_name: document.getElementById("trModel").value,
-          detector_backend: document.getElementById("trDet").value,
-        });
-
+        if (!confirm("Update database fitur wajah?")) return;
+        document.getElementById("btnTrain").innerHTML = `<i data-lucide="loader-2" class="animate-spin inline mr-2"></i> Sedang Mengindeks...`;
+        const res = await api("/api/train_model", { model_name: document.getElementById("trModel").value, detector_backend: document.getElementById("trDet").value });
         toast(res.message, res.status);
-        btn.innerHTML = `Latih Model & Simpan`;
+        document.getElementById("btnTrain").innerHTML = `Update Database Wajah`;
       }
 
-      // --- FEATURE 4: VALIDASI RISET (BENCHMARK) ---
       async function runBenchmark() {
+        const src = document.getElementById("benchSource").value;
         const m = document.getElementById("benchModel").value,
-          d = document.getElementById("benchDet").value;
-        const btn = document.getElementById("btnBench");
-
+          d = document.getElementById("benchDet").value,
+          btn = document.getElementById("btnBench");
         btn.disabled = true;
-        btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin inline mr-2"></i> Menguji ${m} + ${d}...`;
+        const labelData = src === "student" ? "Data Mahasiswa" : "Data Riset";
+        btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin inline mr-2"></i> Menguji ${m} pada ${labelData}...`;
 
-        const res = await api("/api/benchmark", { model_name: m, detector_backend: d });
-
+        const res = await api("/api/benchmark", { model_name: m, detector_backend: d, dataset_source: src });
         if (res.status === "success") {
           const r = res.results;
-          // Styling row based on FPS
           const fpsColor = r.fps > 15 ? "text-green-600 bg-green-50" : r.fps > 5 ? "text-blue-600" : "text-red-500";
+          const datasetBadge =
+            r.dataset === "Mahasiswa" ? `<span class="px-2 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-bold">LOKAL</span>` : `<span class="px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 font-bold">PINS</span>`;
 
-          const row = `
-                    <tr class="hover:bg-gray-50 border-b animate-fade-in">
-                        <td class="p-3 font-medium text-gray-800">${r.model}</td>
-                        <td class="p-3 text-gray-600">${r.detector}</td>
-                        <td class="p-3 text-center font-bold">${r.accuracy}%</td>
-                        <td class="p-3 text-center text-xs font-mono">${r.avg_time}s</td>
-                        <td class="p-3 text-center font-bold ${fpsColor}">${r.fps}</td>
-                        <td class="p-3 text-center text-xs text-gray-400">${r.total_samples}</td>
-                    </tr>
-                `;
+          const row = `<tr class="hover:bg-gray-50 border-b animate-fade-in"><td class="p-3 font-medium text-gray-800">${r.model} <br/> ${datasetBadge}</td><td class="p-3 text-gray-600">${r.detector}</td><td class="p-3 text-center font-bold">${r.accuracy}%</td><td class="p-3 text-center font-bold text-orange-600 bg-orange-50">${r.avg_confidence}%</td><td class="p-3 text-center text-xs font-mono">${r.avg_time}s</td><td class="p-3 text-center font-bold ${fpsColor}">${r.fps}</td></tr>`;
           document.getElementById("benchResults").innerHTML += row;
-          toast(`Selesai: FPS ${r.fps}`, "success");
+          toast(`Selesai: Akurasi ${r.accuracy}%`, "success");
         } else {
           toast(res.message, "error");
         }
-
         btn.disabled = false;
         btn.innerHTML = `<i data-lucide="play-circle"></i> MULAI PENGUJIAN (BENCHMARK)`;
         lucide.createIcons();
       }
 
-      // Load Icons on start
       window.onload = function () {
         lucide.createIcons();
-        // Default active view
         nav("att");
       };
     </script>
